@@ -41,9 +41,9 @@
         }
         .canvas-container {
             display: flex;
-            flex-wrap: wrap;
+            flex-direction: column;
             gap: 20px;
-            justify-content: center;
+            align-items: center;
             margin: 20px 0;
         }
         canvas {
@@ -83,6 +83,9 @@
             margin-top: 10px;
             font-style: italic;
         }
+        .canvas-wrapper {
+            margin-bottom: 20px;
+        }
     </style>
 </head>
 <body>
@@ -118,13 +121,13 @@
         </div>
         
         <div class="canvas-container">
-            <div>
-                <canvas id="originalCanvas" class="hidden"></canvas>
-                <p class="preview-text hidden" id="originalText">Original Image</p>
-            </div>
-            <div>
+            <div class="canvas-wrapper">
                 <canvas id="drawingCanvas" class="hidden"></canvas>
                 <p class="preview-text hidden" id="drawingText">Drawing Effect</p>
+            </div>
+            <div class="canvas-wrapper">
+                <canvas id="originalCanvas" class="hidden"></canvas>
+                <p class="preview-text hidden" id="originalText">Original Image</p>
             </div>
         </div>
     </div>
