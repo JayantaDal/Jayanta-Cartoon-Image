@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Photo to Drawing Converter</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .controls {
+            margin: 20px 0;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .upload-area {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 20px;
+            cursor: pointer;
+        }
+        .upload-area:hover {
+            border-color: #999;
+        }
+        .canvas-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        canvas {
+            max-width: 100%;
+            border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .hidden {
+            display: none;
+        }
+        .btn {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .btn:hover {
+            background-color: #45a049;
+        }
+        .btn:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .slider-container {
+            margin: 10px 0;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .preview-text {
+            text-align: center;
+            margin-top: 10px;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Photo to Drawing Converter</h1>
+        
+        <div class="upload-area" id="uploadArea">
+            <p>Click or drag & drop your photo here</p>
+            <input type="file" id="imageInput" accept="image/*" style="display: none;">
+        </div>
+        
+        <div class="controls">
+            <div class="slider-container">
+                <label for="edgeThreshold">Edge Detection Threshold</label>
+                <input type="range" id="edgeThreshold" min="10" max="100" value="40" class="slider">
+                <span id="edgeThresholdValue">40</span>
+            </div>
+            
+            <div class="slider-container">
+                <label for="blurAmount">Blur Amount</label>
+                <input type="range" id="blurAmount" min="1" max="10" value="3" class="slider">
+                <span id="blurAmountValue">3</span>
+            </div>
+            
+            <div class="slider-container">
+                <label for="lineWeight">Line Weight</label>
+                <input type="range" id="lineWeight" min="1" max="10" value="1" class="slider">
+                <span id="lineWeightValue">1</span>
+            </div>
+            
+            <button id="convertBtn" class="btn" disabled>Convert to Drawing</button>
+            <button id="downloadBtn" class="btn" disabled>Download HD Drawing</button>
+        </div>
+        
+        <div class="canvas-container">
+            <div>
+                <canvas id="originalCanvas" class="hidden"></canvas>
+                <p class="preview-text hidden" id="originalText">Original Image</p>
+            </div>
+            <div>
+                <canvas id="drawingCanvas" class="hidden"></canvas>
+                <p class="preview-text hidden" id="drawingText">Drawing Effect</p>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const uploadArea = document.getElementById('uploadArea');
+            const imageInput = document.getElementById('imageInput');
+            const originalCanvas = document.getElementById('originalCanvas');
+            const drawingCanvas = document.getElementById('drawingCanvas');
+            const originalText = document.getElementById('originalText');
+            const drawingText = document.getElementById('drawingText');
+            const convertBtn = document.getElementById('convertBtn');
+            const downloadBtn = document.getElementById('downloadBtn');
+            const edgeThreshold = document.getElementById('edgeThreshold');
+            const blurAmount = document.getElementById('blurAmount');
+            const lineWeight = document.getElementById('lineWeight');
+            const edgeThresholdValue = document.getElementById('edgeThresholdValue');
+            const blurAmountValue = document.getElementById('blurAmountValue');
+            const lineWeightValue = document.getElementById('lineWeightValue');
+            
+            let originalImage = null;
+            
+            // Update slider values display
+            edgeThreshold.addEventListener('input', () => {
+                edgeThresholdValue.textContent = edgeThreshold.value;
+            });
+            
+            blurAmount.addEventListener('input', () => {
+                blurAmountValue.textContent = blurAmount.value;
+            });
+            
+            lineWeight.addEventListener('input', () => {
+                lineWeightValue.textContent = lineWeight.value;
+            });
+            
+            // Handle file upload via click
+            uploadArea.addEventListener('click', () => {
+                imageInput.click();
+            });
+            
+            // Handle drag and drop
+            uploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadArea.style.borderColor = '#45a049';
+            });
+            
+            uploadArea.addEventListener('dragleave', () => {
+                uploadArea.style.borderColor = '#ccc';
+            });
+            
+            uploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadArea.style.borderColor = '#ccc';
+                
+                if (e.dataTransfer.files.length) {
+                    const file = e.dataTransfer.files[0];
+                    if (file.type.match('image.*')) {
+                        processImageFile(file);
+                    }
+                }
+            });
+            
+            // Handle file input change
+            imageInput.addEventListener('change', () => {
+                if (imageInput.files.length) {
+                    const file = imageInput.files[0];
+                    processImageFile(file);
+                }
+            });
+            
+            // Process the uploaded image
+            function processImageFile(file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    originalImage = new Image();
+                    originalImage.onload = () => {
+                        // Set up original canvas
+                        originalCanvas.width = originalImage.width;
+                        originalCanvas.height = originalImage.height;
+                        const origCtx = originalCanvas.getContext('2d');
+                        origCtx.drawImage(originalImage, 0, 0);
+                        
+                        // Show original image
+                        originalCanvas.classList.remove('hidden');
+                        originalText.classList.remove('hidden');
+                        
+                        // Enable the convert button
+                        convertBtn.disabled = false;
+                    };
+                    originalImage.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+            
+            // Convert button click
+            convertBtn.addEventListener('click', () => {
+                if (!originalImage) return;
+                
+                // Enable the download button
+                downloadBtn.disabled = false;
+                
+                // Process the image
+                applyDrawingEffect();
+            });
+            
+            // Apply drawing effect
+            function applyDrawingEffect() {
+                // Prepare drawing canvas
+                drawingCanvas.width = originalImage.width;
+                drawingCanvas.height = originalImage.height;
+                const drawCtx = drawingCanvas.getContext('2d');
+                
+                // Get image data from original canvas
+                const origCtx = originalCanvas.getContext('2d');
+                const imageData = origCtx.getImageData(0, 0, originalCanvas.width, originalCanvas.height);
+                
+                // Create a temporary canvas for edge detection
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = originalCanvas.width;
+                tempCanvas.height = originalCanvas.height;
+                const tempCtx = tempCanvas.getContext('2d');
+                
+                // First apply blur to reduce noise
+                drawCtx.filter = `blur(${blurAmount.value}px)`;
+                drawCtx.drawImage(originalImage, 0, 0);
+                
+                // Get blurred image data
+                const blurredData = drawCtx.getImageData(0, 0, drawingCanvas.width, drawingCanvas.height);
+                
+                // Clear canvas
+                drawCtx.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height);
+                drawCtx.filter = 'none';
+                
+                // Set background to white
+                drawCtx.fillStyle = 'white';
+                drawCtx.fillRect(0, 0, drawingCanvas.width, drawingCanvas.height);
+                
+                // Apply edge detection to the blurred image
+                const edges = detectEdges(blurredData, parseInt(edgeThreshold.value), parseInt(lineWeight.value));
+                
+                // Draw the edges
+                drawCtx.putImageData(edges, 0, 0);
+                
+                // Show drawing canvas
+                drawingCanvas.classList.remove('hidden');
+                drawingText.classList.remove('hidden');
+            }
+            
+            // Edge detection algorithm (Sobel operator)
+            function detectEdges(imageData, threshold, lineWeight) {
+                const width = imageData.width;
+                const height = imageData.height;
+                const data = imageData.data;
+                const outputData = new Uint8ClampedArray(data.length);
+                
+                // Fill with white
+                for (let i = 0; i < data.length; i += 4) {
+                    outputData[i] = 255;     // R
+                    outputData[i+1] = 255;   // G
+                    outputData[i+2] = 255;   // B
+                    outputData[i+3] = 255;   // A
+                }
+                
+                // Sobel kernels
+                const sobelX = [-1, 0, 1, -2, 0, 2, -1, 0, 1];
+                const sobelY = [-1, -2, -1, 0, 0, 0, 1, 2, 1];
+                
+                for (let y = 1; y < height - 1; y++) {
+                    for (let x = 1; x < width - 1; x++) {
+                        let gx = 0;
+                        let gy = 0;
+                        
+                        // Calculate gradient
+                        let idx = 0;
+                        for (let ky = -1; ky <= 1; ky++) {
+                            for (let kx = -1; kx <= 1; kx++) {
+                                const pixelPos = ((y + ky) * width + (x + kx)) * 4;
+                                // Convert to grayscale
+                                const pixelBrightness = (data[pixelPos] + data[pixelPos + 1] + data[pixelPos + 2]) / 3;
+                                
+                                gx += pixelBrightness * sobelX[idx];
+                                gy += pixelBrightness * sobelY[idx];
+                                idx++;
+                            }
+                        }
+                        
+                        // Calculate gradient magnitude
+                        const g = Math.sqrt(gx * gx + gy * gy);
+                        
+                        // Apply threshold
+                        const pos = (y * width + x) * 4;
+                        if (g > threshold) {
+                            // Draw line with specified weight
+                            for (let ly = -lineWeight; ly <= lineWeight; ly++) {
+                                for (let lx = -lineWeight; lx <= lineWeight; lx++) {
+                                    if (x + lx >= 0 && x + lx < width && y + ly >= 0 && y + ly < height) {
+                                        const linePos = ((y + ly) * width + (x + lx)) * 4;
+                                        outputData[linePos] = 0;     // R
+                                        outputData[linePos+1] = 0;   // G
+                                        outputData[linePos+2] = 0;   // B
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                return new ImageData(outputData, width, height);
+            }
+            
+            // Download button click
+            downloadBtn.addEventListener('click', () => {
+                // Create high-resolution canvas for download
+                const hdCanvas = document.createElement('canvas');
+                hdCanvas.width = originalImage.width;
+                hdCanvas.height = originalImage.height;
+                const hdCtx = hdCanvas.getContext('2d');
+                
+                // Draw the processed image onto the HD canvas
+                hdCtx.drawImage(drawingCanvas, 0, 0);
+                
+                // Create download link
+                const link = document.createElement('a');
+                link.download = 'drawing.png';
+                link.href = hdCanvas.toDataURL('image/png');
+                link.click();
+            });
+        });
+    </script>
+</body>
+</html>
